@@ -1,0 +1,177 @@
+<!DOCTYPE html>
+<html lang="it">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<meta name="robots" content="noindex">
+<title>Tre suoni</title>
+<style>
+  :root {
+    --bg: #14151a;
+    --text: #f2f2f5;
+    --muted: #9a9cab;
+  }
+  * { box-sizing: border-box; }
+  body {
+    margin: 0;
+    min-height: 100vh;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    gap: 2.5rem;
+    padding: 1.5rem;
+    background: var(--bg);
+    color: var(--text);
+    font-family: system-ui, -apple-system, "Segoe UI", Roboto, sans-serif;
+  }
+  h1 { margin: 0; font-size: clamp(1.6rem, 5vw, 2.4rem); }
+  p { margin: .5rem 0 0; color: var(--muted); text-align: center; }
+  header { text-align: center; }
+  .pads {
+    display: grid;
+    grid-template-columns: repeat(3, minmax(0, 11rem));
+    gap: 1.25rem;
+    width: 100%;
+    justify-content: center;
+  }
+  @media (max-width: 520px) {
+    .pads { grid-template-columns: minmax(0, 16rem); }
+  }
+  .pad {
+    aspect-ratio: 1;
+    border: 0;
+    border-radius: 1.5rem;
+    background: var(--c);
+    color: #14151a;
+    font: inherit;
+    font-size: 1.15rem;
+    font-weight: 700;
+    cursor: pointer;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    gap: .5rem;
+    box-shadow: 0 .5rem 0 var(--shadow);
+    transition: transform .08s, box-shadow .08s, filter .08s;
+    -webkit-tap-highlight-color: transparent;
+    touch-action: manipulation;
+  }
+  @media (max-width: 520px) { .pad { aspect-ratio: 2.2; flex-direction: row; } }
+  .pad .icon { font-size: 2.6rem; line-height: 1; }
+  .pad kbd {
+    font: inherit;
+    font-size: .75rem;
+    font-weight: 600;
+    padding: .1rem .45rem;
+    border-radius: .35rem;
+    background: rgba(0, 0, 0, .18);
+  }
+  .pad:hover { filter: brightness(1.08); }
+  .pad:focus-visible { outline: 3px solid #fff; outline-offset: 4px; }
+  .pad:active, .pad.playing {
+    transform: translateY(.35rem);
+    box-shadow: 0 .15rem 0 var(--shadow);
+    filter: brightness(1.2);
+  }
+  @media (prefers-reduced-motion: reduce) { .pad { transition: none; } }
+</style>
+</head>
+<body>
+  <header>
+    <h1>Tre suoni</h1>
+    <p>Clicca un pulsante, oppure premi 1, 2 o 3 sulla tastiera.</p>
+  </header>
+
+  <main class="pads">
+    <button class="pad" data-sound="campana" style="--c:#ffd166;--shadow:#b8902f">
+      <span class="icon" aria-hidden="true">🔔</span>Campana <kbd>1</kbd>
+    </button>
+    <button class="pad" data-sound="tamburo" style="--c:#ef6f6c;--shadow:#a8413f">
+      <span class="icon" aria-hidden="true">🥁</span>Tamburo <kbd>2</kbd>
+    </button>
+    <button class="pad" data-sound="laser" style="--c:#5fd4c4;--shadow:#2f8f82">
+      <span class="icon" aria-hidden="true">🚀</span>Laser <kbd>3</kbd>
+    </button>
+  </main>
+
+<script>
+  // I suoni sono generati con la Web Audio API: nessun file audio da caricare.
+  let ctx;
+  function audio() {
+    ctx = ctx || new (window.AudioContext || window.webkitAudioContext)();
+    if (ctx.state === 'suspended') ctx.resume();
+    return ctx;
+  }
+
+  const sounds = {
+    campana() {
+      const ac = audio(), t = ac.currentTime;
+      // Parziali non armonici, tipici di una campana
+      [[880, .5, 1.8], [1320, .25, 1.3], [2217, .15, .9], [3520, .08, .5]].forEach(([f, vol, dur]) => {
+        const o = ac.createOscillator(), g = ac.createGain();
+        o.type = 'sine';
+        o.frequency.value = f;
+        g.gain.setValueAtTime(vol, t);
+        g.gain.exponentialRampToValueAtTime(.0001, t + dur);
+        o.connect(g).connect(ac.destination);
+        o.start(t);
+        o.stop(t + dur);
+      });
+    },
+    tamburo() {
+      const ac = audio(), t = ac.currentTime;
+      const o = ac.createOscillator(), g = ac.createGain();
+      o.type = 'sine';
+      o.frequency.setValueAtTime(180, t);
+      o.frequency.exponentialRampToValueAtTime(45, t + .25);
+      g.gain.setValueAtTime(1, t);
+      g.gain.exponentialRampToValueAtTime(.0001, t + .45);
+      o.connect(g).connect(ac.destination);
+      o.start(t);
+      o.stop(t + .45);
+      // Colpo iniziale: breve rumore bianco
+      const len = Math.floor(ac.sampleRate * .05);
+      const buf = ac.createBuffer(1, len, ac.sampleRate);
+      const data = buf.getChannelData(0);
+      for (let i = 0; i < len; i++) data[i] = (Math.random() * 2 - 1) * (1 - i / len);
+      const n = ac.createBufferSource(), ng = ac.createGain();
+      n.buffer = buf;
+      ng.gain.value = .4;
+      n.connect(ng).connect(ac.destination);
+      n.start(t);
+    },
+    laser() {
+      const ac = audio(), t = ac.currentTime;
+      const o = ac.createOscillator(), g = ac.createGain();
+      o.type = 'sawtooth';
+      o.frequency.setValueAtTime(1800, t);
+      o.frequency.exponentialRampToValueAtTime(120, t + .35);
+      g.gain.setValueAtTime(.3, t);
+      g.gain.exponentialRampToValueAtTime(.0001, t + .4);
+      o.connect(g).connect(ac.destination);
+      o.start(t);
+      o.stop(t + .4);
+    }
+  };
+
+  const pads = [...document.querySelectorAll('.pad')];
+
+  function play(pad) {
+    sounds[pad.dataset.sound]();
+    pad.classList.add('playing');
+    clearTimeout(pad._t);
+    pad._t = setTimeout(() => pad.classList.remove('playing'), 150);
+  }
+
+  pads.forEach(pad => pad.addEventListener('click', () => play(pad)));
+
+  document.addEventListener('keydown', e => {
+    if (e.repeat || e.ctrlKey || e.metaKey || e.altKey) return;
+    const pad = pads[Number(e.key) - 1];
+    if (pad) play(pad);
+  });
+</script>
+</body>
+</html>
